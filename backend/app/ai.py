@@ -161,7 +161,7 @@ def run_simulated_qualification(messages_history: List[Dict[str, str]]) -> Dict[
     bedrooms = None
     intent = "medium"
 
-    all_content = " ".join([m["content"].lower() for m in messages_history])
+    all_content = " ".join([m["content"].lower() for m in messages_history if m["sender"] == "lead"])
     
     # 1. Budget
     # Strip commas that occur between digits (e.g. 750,000 -> 750000)

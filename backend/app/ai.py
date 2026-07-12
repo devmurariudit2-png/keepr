@@ -164,11 +164,14 @@ def run_simulated_qualification(messages_history: List[Dict[str, str]]) -> Dict[
     all_content = " ".join([m["content"].lower() for m in messages_history])
     
     # 1. Budget
-    budget_match = re.search(r'(\d+)\s*k', all_content)
+    # Strip commas that occur between digits (e.g. 750,000 -> 750000)
+    all_content_cleaned = re.sub(r'(?<=\d),(?=\d)', '', all_content)
+    
+    budget_match = re.search(r'(\d+)\s*k', all_content_cleaned)
     if budget_match:
         budget = float(budget_match.group(1)) * 1000
     else:
-        numbers = re.findall(r'\b\d{5,7}\b', all_content)
+        numbers = re.findall(r'\b\d{5,7}\b', all_content_cleaned)
         if numbers:
             budget = float(numbers[0])
 

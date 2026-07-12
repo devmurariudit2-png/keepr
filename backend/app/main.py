@@ -100,6 +100,12 @@ class MessageAndLeadResponse(BaseModel):
     ai_reply: Optional[str] = None
     lead: LeadResponse
 
+class InboundLeadPayload(BaseModel):
+    name: str
+    phone: str
+    email: Optional[str] = None
+    source: Optional[str] = "zapier"
+
 class LeadUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
@@ -855,5 +861,73 @@ async def evolution_webhook(
         "lead_id": str(lead.id),
         "lead_status": lead.status,
         "ai_reply": reply_text
+    }
+
+
+@app.post("/webhooks/ingest")
+async def ingest_lead_webhook(
+    payload: InboundLeadPayload,
+    db: Session = Depends(get_db)
+):
+    """
+    Webhook receiver for multi-source lead ingestion.
+    Creates a new lead and triggers an automated welcome/qualification WhatsApp outreach.
+    """
+    # 1. Clean phone number (strip whitespace, dashes, country code prefix if needed)
+    clean_phone = "".join(filter(str.isdigit, payload.phone))
+    if not clean_phone:
+        raise HTTPException(status_code=400, detail="Invalid phone number format")
+        
+    # 2. Find default company and broker (Sarah) to assign the lead
+    company = db.query(Company).first()
+    if not company:
+        company = Company(id=PUBLIC_DEMO_COMPANY_ID, name="Keepr Public Demo")
+        db.add(company)
+        db.commit()
+        db.refresh(company)
+        
+    agent = db.query(User).filter(User.company_id == company.id).first()
+    agent_id = agent.id if agent else None
+    
+    # 3. Check if lead already exists to prevent duplicate outreach
+    lead = db.query(Lead).filter(Lead.phone == clean_phone).first()
+    if lead:
+        return {
+            "status": "exists",
+            "lead_id": str(lead.id),
+            "lead_status": lead.status
+        }
+        
+    # 4. Create new lead with qualifying status (since we are starting outreach)
+    lead = Lead(
+        company_id=company.id,
+        assigned_agent_id=agent_id,
+        name=payload.name,
+        phone=clean_phone,
+        email=payload.email,
+        source=payload.source or "zapier",
+        status="qualifying",
+        lead_score=0
+    )
+    db.add(lead)
+    db.commit()
+    db.refresh(lead)
+    
+    # 5. Generate first qualification/welcome question
+    outreach_text = f"Hi {payload.name}! I am the AI assistant for Keepr Real Estate. Thanks for your inquiry! Which neighborhood or area are you hoping to find a property in?"
+    
+    # Save the AI welcome message to database transcript
+    ai_msg = Message(lead_id=lead.id, sender="ai", content=outreach_text)
+    db.add(ai_msg)
+    db.commit()
+    db.refresh(lead)
+    
+    # 6. Send outbound WhatsApp message via Evolution API
+    send_evolution_whatsapp(clean_phone, outreach_text)
+    
+    return {
+        "status": "ingested_and_outreached",
+        "lead_id": str(lead.id),
+        "outreach_message": outreach_text
     }
 

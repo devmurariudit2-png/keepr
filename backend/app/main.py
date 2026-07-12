@@ -3,7 +3,7 @@ import io
 from uuid import UUID
 from datetime import datetime, date, time
 from typing import Optional, List
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
@@ -689,4 +689,171 @@ def public_send_message(
         db.refresh(lead)
 
     return {"message": new_msg, "lead": lead, "ai_reply": ai_reply_text}
+
+
+import urllib.request
+import json
+
+def send_evolution_whatsapp(phone: str, text: str):
+    """
+    Helper to send a WhatsApp message using the self-hosted Evolution API.
+    """
+    api_url = os.getenv("EVOLUTION_API_URL")
+    api_key = os.getenv("EVOLUTION_API_KEY")
+    instance = os.getenv("EVOLUTION_INSTANCE_NAME")
+    
+    if not api_url or not api_key or not instance:
+        print("[Evolution API] Config missing. Message output skipped:")
+        print(f"To {phone}: {text}")
+        return
+        
+    payload = {
+        "number": phone,
+        "options": {
+            "delay": 1000,
+            "presence": "composing"
+        },
+        "textMessage": {
+            "text": text
+        }
+    }
+    
+    url = f"{api_url.rstrip('/')}/message/sendText/{instance}"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "apikey": api_key,
+            "Content-Type": "application/json"
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req) as response:
+            print(f"[Evolution API] Outbound message sent successfully: {response.status}")
+    except Exception as e:
+        print(f"[Evolution API] Failed to send outbound message: {e}")
+
+
+@app.post("/webhooks/evolution-api")
+async def evolution_webhook(
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Webhook receiver for self-hosted Evolution API.
+    Handles the messages.upsert event for incoming WhatsApp chats.
+    """
+    event = payload.get("event")
+    if event != "messages.upsert":
+        return {"status": "ignored_event", "event": event}
+        
+    data = payload.get("data", {})
+    key = data.get("key", {})
+    
+    # 1. Ignore if sent by the bot/me to avoid infinite loops
+    if key.get("fromMe", False):
+        return {"status": "ignored_self"}
+        
+    # 2. Extract sender phone number and message body
+    remote_jid = key.get("remoteJid", "")
+    if not remote_jid or "@" not in remote_jid:
+        return {"status": "ignored_invalid_jid"}
+        
+    phone = remote_jid.split("@")[0]
+    
+    message_obj = data.get("message", {})
+    body = message_obj.get("conversation") or message_obj.get("extendedTextMessage", {}).get("text") or ""
+    body = body.strip()
+    if not body:
+        return {"status": "ignored_empty_message"}
+        
+    push_name = data.get("pushName") or f"Lead {phone}"
+    
+    # 3. Find default company and broker (Sarah) to assign the lead
+    company = db.query(Company).first()
+    if not company:
+        company = Company(id=PUBLIC_DEMO_COMPANY_ID, name="Keepr Public Demo")
+        db.add(company)
+        db.commit()
+        db.refresh(company)
+        
+    agent = db.query(User).filter(User.company_id == company.id).first()
+    agent_id = agent.id if agent else None
+    
+    # 4. Find or create lead by phone number
+    lead = db.query(Lead).filter(Lead.phone == phone).first()
+    if not lead:
+        lead = Lead(
+            company_id=company.id,
+            assigned_agent_id=agent_id,
+            name=push_name,
+            phone=phone,
+            source="whatsapp",
+            status="new",
+            lead_score=0
+        )
+        db.add(lead)
+        db.commit()
+        db.refresh(lead)
+        
+    # 5. Save lead message
+    new_msg = Message(lead_id=lead.id, sender="lead", content=body)
+    db.add(new_msg)
+    lead.last_message_at = func.now()
+    
+    reply_text = None
+    
+    if lead.status not in ["needs_human", "lost", "appointment_booked"]:
+        if lead.status == "new":
+            lead.status = "qualifying"
+            
+        db.commit()
+        db.refresh(lead)
+        
+        # Check human escalation keyword
+        if check_for_human_escalation(body):
+            lead.status = "needs_human"
+            db.commit()
+            db.refresh(lead)
+            reply_text = "I've flagged this for a human agent to review. They will get back to you shortly."
+        else:
+            # 6. Generate AI response
+            transcript_msgs = db.query(Message).filter(Message.lead_id == lead.id).order_by(Message.created_at.asc()).all()
+            history = [{"sender": m.sender, "content": m.content} for m in transcript_msgs]
+            
+            ai_res = generate_qualification_reply(history)
+            
+            if ai_res.get("qualification_data"):
+                q_data = ai_res["qualification_data"]
+                lead.budget = q_data["budget"]
+                lead.area = q_data["area"]
+                lead.timeline = q_data["timeline"]
+                lead.mortgage_status = q_data["mortgage_status"]
+                lead.bedrooms = q_data["bedrooms"]
+                lead.intent = q_data["intent"]
+                lead.lead_score = compute_lead_score(lead)
+                lead.status = "qualified"
+                
+                # Cal.com booking link
+                reply_text = "Great — you've been fully qualified! A Keepr agent will contact you shortly. Please book your visit here: https://cal.com/keepr-demo/15min 🎉"
+            else:
+                reply_text = ai_res["reply"]
+                
+        if reply_text:
+            # Save AI reply to transcript
+            ai_msg = Message(lead_id=lead.id, sender="ai", content=reply_text)
+            db.add(ai_msg)
+            db.commit()
+            db.refresh(lead)
+            
+            # Send outgoing WhatsApp reply via Evolution API
+            send_evolution_whatsapp(phone, reply_text)
+            
+    return {
+        "status": "processed",
+        "lead_id": str(lead.id),
+        "lead_status": lead.status,
+        "ai_reply": reply_text
+    }
 

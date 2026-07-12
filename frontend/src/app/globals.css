@@ -1,0 +1,133 @@
+/* Google Fonts Imports */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=Roboto+Slab:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  /* Palette Tokens */
+  --navy: #1B2A4A;
+  --paper: #F6F4EF;
+  --brass: #B8923F;
+  --brass-hover: #A07F35;
+  --ink: #1A1A1A;
+  --signal-red: #C1443B;
+  
+  /* UI Helpers */
+  --border-light: rgba(27, 42, 74, 0.15);
+  --white: #ffffff;
+  --gray-light: #eae6db;
+
+  /* Font Families */
+  --font-display: 'Roboto Slab', serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html, body {
+  height: 100%;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Blueprint Grid Background Pattern */
+.blueprint-grid {
+  background-image: 
+    linear-gradient(rgba(27, 42, 74, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(27, 42, 74, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Typography styles */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  color: var(--navy);
+}
+
+.mono-text {
+  font-family: var(--font-mono);
+}
+
+/* Forms styling (based on autofill-sign-in-form guide) */
+input {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  padding: 12px 16px;
+  border: 1px solid var(--border-light);
+  background-color: var(--white);
+  border-radius: 4px;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 3px rgba(184, 146, 63, 0.15);
+}
+
+button {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+button.primary {
+  background-color: var(--brass);
+  color: var(--white);
+}
+
+button.primary:hover {
+  background-color: var(--brass-hover);
+}
+
+button.secondary {
+  background-color: transparent;
+  color: var(--navy);
+  border: 1px solid var(--navy);
+}
+
+button.secondary:hover {
+  background-color: rgba(27, 42, 74, 0.05);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--paper);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(27, 42, 74, 0.2);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(27, 42, 74, 0.3);
+}
+
+@keyframes coldPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.55; transform: scale(0.85); }
+}

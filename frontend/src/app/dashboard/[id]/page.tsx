@@ -30,6 +30,8 @@ interface Message {
   created_at: string;
 }
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function LeadDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -68,7 +70,7 @@ export default function LeadDetailPage() {
         if (!token) return;
 
         try {
-          const res = await fetch("http://localhost:8000/appointments", {
+          const res = await fetch(`${API}/appointments`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -82,7 +84,7 @@ export default function LeadDetailPage() {
 
           if (res.ok) {
             // Re-fetch lead details to update status to appointment_booked
-            const leadRes = await fetch(`http://localhost:8000/leads/${leadId}`, {
+            const leadRes = await fetch(`${API}/leads/${leadId}`, {
               headers: { "Authorization": `Bearer ${token}` }
             });
             if (leadRes.ok) {
@@ -125,7 +127,7 @@ export default function LeadDetailPage() {
       setError(null);
 
       // Fetch Lead details
-      const leadRes = await fetch(`http://localhost:8000/leads/${leadId}`, {
+      const leadRes = await fetch(`${API}/leads/${leadId}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!leadRes.ok) throw new Error("Failed to load lead details.");
@@ -134,7 +136,7 @@ export default function LeadDetailPage() {
       setEditFields(leadData);
 
       // Fetch Messages transcript
-      const msgsRes = await fetch(`http://localhost:8000/leads/${leadId}/messages`, {
+      const msgsRes = await fetch(`${API}/leads/${leadId}/messages`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!msgsRes.ok) throw new Error("Failed to load messages transcript.");
@@ -176,7 +178,7 @@ export default function LeadDetailPage() {
     setInputText("");
 
     try {
-      const response = await fetch(`http://localhost:8000/leads/${leadId}/messages`, {
+      const response = await fetch(`${API}/leads/${leadId}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -193,7 +195,7 @@ export default function LeadDetailPage() {
       setEditFields(data.lead);
 
       // Re-fetch all messages to ensure proper ordering and AI replies are included
-      const msgsRes = await fetch(`http://localhost:8000/leads/${leadId}/messages`, {
+      const msgsRes = await fetch(`${API}/leads/${leadId}/messages`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (msgsRes.ok) {
@@ -213,7 +215,7 @@ export default function LeadDetailPage() {
 
     try {
       setError(null);
-      const res = await fetch(`http://localhost:8000/leads/${leadId}`, {
+      const res = await fetch(`${API}/leads/${leadId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

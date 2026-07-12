@@ -29,6 +29,8 @@ interface Lead {
   created_at: string;
 }
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -63,7 +65,7 @@ export default function DashboardPage() {
     formData.append("file", importFile);
 
     try {
-      const res = await fetch("http://localhost:8000/leads/import", {
+      const res = await fetch(`${API}/leads/import`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -104,7 +106,7 @@ export default function DashboardPage() {
 
     setResetting(true);
     try {
-      const res = await fetch("http://localhost:8000/demo/reset", {
+      const res = await fetch(`${API}/demo/reset`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
@@ -142,7 +144,7 @@ export default function DashboardPage() {
       setError(null);
 
       // Fetch summary stats
-      const statsRes = await fetch("http://localhost:8000/dashboard/summary", {
+      const statsRes = await fetch(`${API}/dashboard/summary`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
@@ -152,7 +154,7 @@ export default function DashboardPage() {
       setStats(statsData);
 
       // Fetch leads list
-      const leadsRes = await fetch("http://localhost:8000/leads", {
+      const leadsRes = await fetch(`${API}/leads`, {
         headers: {
           "Authorization": `Bearer ${token}`
         }
